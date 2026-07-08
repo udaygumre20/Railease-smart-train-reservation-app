@@ -1,1 +1,683 @@
-﻿// Prisma database schema - models, relations, enums, indexes
+// ============================================================
+// RailEase – Smart Train Reservation System
+// Prisma Schema for PostgreSQL (Neon)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  USER
+  ADMIN
+  AGENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum TrainStatus {
+  ACTIVE
+  CANCELLED
+  SUSPENDED
+}
+
+enum SeatType {
+  LOWER
+  MIDDLE
+  UPPER
+  SIDE_LOWER
+  SIDE_UPPER
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  WAITLISTED
+  RAC
+  CANCELLED
+  EXPIRED
+}
+
+enum TicketStatus {
+  CONFIRMED
+  WAITLISTED
+  RAC
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  UPI
+  NET_BANKING
+  WALLET
+}
+
+enum WaitlistStatus {
+  WAITING
+  PROMOTED
+  CANCELLED
+}
+
+enum RACStatus {
+  RAC
+  PROMOTED
+  CANCELLED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  WAITLIST_PROMOTED
+  RAC_PROMOTED
+  TRAIN_DELAY
+  DEPARTURE_REMINDER
+  GENERAL
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum Quota {
+  GENERAL
+  LADIES
+  TATKAL
+  PREMIUM_TATKAL
+  SENIOR_CITIZEN
+  DIVYAANG
+  DEFENCE
+  FOREIGN_TOURIST
+}
+
+// ============================================================
+// 1. USERS
+// ============================================================
+// Core user table with authentication and profile data.
+// Supports role-based access (USER, ADMIN, AGENT).
+// Linked to bookings, seat locks, and notifications.
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String    // Bcrypt hashed
+  firstName       String    @map("first_name")
+  lastName        String    @map("last_name")
+  phone           String?   @unique
+  dateOfBirth     DateTime? @map("date_of_birth")
+  gender          Gender?
+  role            Role      @default(USER)
+  avatar          String?   // Profile image URL
+  isVerified      Boolean   @default(false) @map("is_verified")
+  isActive        Boolean   @default(true) @map("is_active")
+  refreshToken    String?   @map("refresh_token")
+  lastLoginAt     DateTime? @map("last_login_at")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  bookings        Booking[]
+  seatLocks       SeatLock[]
+  notifications   Notification[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================================
+// 2. STATIONS
+// ============================================================
+// Railway stations across the network.
+// Each station has a unique code (e.g., NDLS, MMCT, HWH).
+// Used for route stops and booking origin/destination.
+
+model Station {
+  id              String    @id @default(uuid())
+  code            String    @unique // NDLS, MMCT, HWH, etc.
+  name            String    // New Delhi, Mumbai Central, Howrah
+  city            String
+  state           String
+  zone            String?   // Railway zone (NR, WR, ER, etc.)
+  latitude        Decimal?  @db.Decimal(10, 7)
+  longitude       Decimal?  @db.Decimal(10, 7)
+  platforms       Int       @default(1)
+  isActive        Boolean   @default(true) @map("is_active")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  routeStops          RouteStop[]
+  departureBookings   Booking[]   @relation("BoardingStation")
+  arrivalBookings     Booking[]   @relation("AlightingStation")
+
+  @@index([code])
+  @@index([name])
+  @@index([city])
+  @@map("stations")
+}
+
+// ============================================================
+// 3. ROUTES
+// ============================================================
+// Named routes representing a path between an origin and destination.
+// A route is composed of multiple RouteStops (ordered stations).
+
+model Route {
+  id              String    @id @default(uuid())
+  name            String    // "Delhi-Mumbai Rajdhani Route"
+  code            String    @unique // "NDLS-MMCT-RAJ"
+  totalDistance    Decimal   @db.Decimal(10, 2) @map("total_distance") // km
+  isActive        Boolean   @default(true) @map("is_active")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  stops           RouteStop[]
+  trainRoutes     TrainRoute[]
+
+  @@map("routes")
+}
+
+// ============================================================
+// 4. ROUTE STOPS
+// ============================================================
+// Individual stations along a route with sequence, timing, and distance.
+// Defines the arrival/departure schedule at each stop.
+// dayOffset handles multi-day journeys (day 0, 1, 2...).
+
+model RouteStop {
+  id                  String    @id @default(uuid())
+  routeId             String    @map("route_id")
+  stationId           String    @map("station_id")
+  sequenceNumber      Int       @map("sequence_number")
+  distanceFromOrigin  Decimal   @db.Decimal(10, 2) @map("distance_from_origin") // km
+  arrivalTime         String?   @map("arrival_time")    // "HH:MM" (null for origin)
+  departureTime       String?   @map("departure_time")  // "HH:MM" (null for destination)
+  haltDuration        Int?      @map("halt_duration")   // Minutes
+  dayOffset           Int       @default(0) @map("day_offset") // Day 0, 1, 2...
+  platform            Int?
+
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  route               Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  station             Station   @relation(fields: [stationId], references: [id])
+
+  @@unique([routeId, sequenceNumber])
+  @@unique([routeId, stationId])
+  @@index([routeId])
+  @@index([stationId])
+  @@map("route_stops")
+}
+
+// ============================================================
+// 5. TRAINS
+// ============================================================
+// Master train information (number, name, status).
+// Linked to coaches, routes, and bookings.
+
+model Train {
+  id              String      @id @default(uuid())
+  trainNumber     String      @unique @map("train_number") // "12952"
+  name            String      // "Mumbai Rajdhani Express"
+  status          TrainStatus @default(ACTIVE)
+
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  coaches         Coach[]
+  trainRoutes     TrainRoute[]
+  bookings        Booking[]
+  seatLocks       SeatLock[]
+  waitingLists    WaitingList[]
+  racEntries      RAC[]
+
+  @@index([trainNumber])
+  @@index([name])
+  @@index([status])
+  @@map("trains")
+}
+
+// ============================================================
+// 6. TRAIN ROUTES (Junction: Train ↔ Route + Schedule)
+// ============================================================
+// Links a train to a route and defines its running schedule.
+// A train can have different routes on different days/seasons.
+// runDays specifies which days of the week the train operates.
+
+model TrainRoute {
+  id              String      @id @default(uuid())
+  trainId         String      @map("train_id")
+  routeId         String      @map("route_id")
+  runDays         DayOfWeek[] @map("run_days") // Days the train runs
+  effectiveFrom   DateTime    @map("effective_from")
+  effectiveTo     DateTime?   @map("effective_to") // Null = ongoing
+  isActive        Boolean     @default(true) @map("is_active")
+
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  train           Train       @relation(fields: [trainId], references: [id], onDelete: Cascade)
+  route           Route       @relation(fields: [routeId], references: [id])
+
+  @@unique([trainId, routeId])
+  @@index([trainId])
+  @@index([routeId])
+  @@index([isActive])
+  @@map("train_routes")
+}
+
+// ============================================================
+// 7. COACH TYPES
+// ============================================================
+// Classification of coaches: AC 1st Class, AC 2-Tier, AC 3-Tier,
+// Sleeper, General, Chair Car, Executive Chair Car, etc.
+// Defines seat layout, berth tiers, and base fare multiplier.
+
+model CoachType {
+  id              String    @id @default(uuid())
+  code            String    @unique // "1A", "2A", "3A", "SL", "GEN", "CC", "EC"
+  name            String    // "AC First Class", "AC 2 Tier", "Sleeper", etc.
+  seatLayout      Json?     @map("seat_layout") // JSON describing seat arrangement
+  seatsPerCoach   Int       @map("seats_per_coach")
+  hasAC           Boolean   @default(false) @map("has_ac")
+  berthTiers      Int       @map("berth_tiers") // 2 or 3 tier
+  baseFarePerKm   Decimal   @db.Decimal(6, 2) @map("base_fare_per_km")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  coaches         Coach[]
+
+  @@map("coach_types")
+}
+
+// ============================================================
+// 8. COACHES
+// ============================================================
+// Physical coaches attached to a train.
+// Each coach belongs to a CoachType and contains Seats.
+// coachNumber is unique per train (e.g., S1, S2, B1, A1).
+
+model Coach {
+  id              String    @id @default(uuid())
+  coachNumber     String    @map("coach_number") // "S1", "B1", "A1"
+  trainId         String    @map("train_id")
+  coachTypeId     String    @map("coach_type_id")
+  sequence        Int       // Order of coach in the train rake
+  totalSeats      Int       @map("total_seats")
+  isActive        Boolean   @default(true) @map("is_active")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  train           Train     @relation(fields: [trainId], references: [id], onDelete: Cascade)
+  coachType       CoachType @relation(fields: [coachTypeId], references: [id])
+  seats           Seat[]
+
+  @@unique([trainId, coachNumber])
+  @@index([trainId])
+  @@index([coachTypeId])
+  @@map("coaches")
+}
+
+// ============================================================
+// 9. SEATS
+// ============================================================
+// Individual seat/berth within a coach.
+// seatType defines berth position (LOWER, MIDDLE, UPPER, SIDE_LOWER, SIDE_UPPER).
+// Linked to tickets, seat locks, and RAC entries.
+
+model Seat {
+  id              String    @id @default(uuid())
+  seatNumber      Int       @map("seat_number")
+  seatType        SeatType  @map("seat_type")
+  coachId         String    @map("coach_id")
+  isAvailable     Boolean   @default(true) @map("is_available")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  coach           Coach     @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  tickets         Ticket[]
+  seatLocks       SeatLock[]
+  racEntries      RAC[]
+
+  @@unique([coachId, seatNumber])
+  @@index([coachId])
+  @@index([isAvailable])
+  @@index([seatType])
+  @@map("seats")
+}
+
+// ============================================================
+// 10. BOOKINGS
+// ============================================================
+// Master booking record tying a user to a train journey.
+// Contains boarding/alighting stations, journey date, fare, and status.
+// Parent of Passengers, Payment, and PNR.
+
+model Booking {
+  id                  String        @id @default(uuid())
+  userId              String        @map("user_id")
+  trainId             String        @map("train_id")
+  boardingStationId   String        @map("boarding_station_id")
+  alightingStationId  String        @map("alighting_station_id")
+  journeyDate         DateTime      @map("journey_date")
+  totalPassengers     Int           @map("total_passengers")
+  totalFare           Decimal       @db.Decimal(10, 2) @map("total_fare")
+  status              BookingStatus @default(PENDING)
+  quota               Quota         @default(GENERAL)
+  coachPreference     String?       @map("coach_preference") // Preferred coach type code
+  bookingDate         DateTime      @default(now()) @map("booking_date")
+  cancelledAt         DateTime?     @map("cancelled_at")
+  cancellationReason  String?       @map("cancellation_reason")
+
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  user                User          @relation(fields: [userId], references: [id])
+  train               Train         @relation(fields: [trainId], references: [id])
+  boardingStation     Station       @relation("BoardingStation", fields: [boardingStationId], references: [id])
+  alightingStation    Station       @relation("AlightingStation", fields: [alightingStationId], references: [id])
+  passengers          Passenger[]
+  payment             Payment?
+  pnr                 PNR?
+
+  @@index([userId])
+  @@index([trainId])
+  @@index([journeyDate])
+  @@index([status])
+  @@index([bookingDate])
+  @@index([trainId, journeyDate])
+  @@map("bookings")
+}
+
+// ============================================================
+// 11. PASSENGERS
+// ============================================================
+// Individual passengers within a booking.
+// Each passenger gets their own ticket, and may enter WL or RAC.
+// isLeadPassenger marks the primary contact.
+
+model Passenger {
+  id              String    @id @default(uuid())
+  bookingId       String    @map("booking_id")
+  firstName       String    @map("first_name")
+  lastName        String    @map("last_name")
+  age             Int
+  gender          Gender
+  nationality     String    @default("IN")
+  idType          String?   @map("id_type")   // "AADHAR", "PASSPORT", "VOTER_ID"
+  idNumber        String?   @map("id_number")
+  seatPreference  SeatType? @map("seat_preference") // Preferred berth type
+  isLeadPassenger Boolean   @default(false) @map("is_lead_passenger")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticket          Ticket?
+  waitingList     WaitingList?
+  rac             RAC?
+
+  @@index([bookingId])
+  @@map("passengers")
+}
+
+// ============================================================
+// 12. TICKETS
+// ============================================================
+// Individual ticket issued to a confirmed passenger.
+// References the assigned seat, coach, fare, and status.
+// One-to-one with Passenger (a passenger has exactly one ticket).
+
+model Ticket {
+  id              String       @id @default(uuid())
+  passengerId     String       @unique @map("passenger_id")
+  seatId          String       @map("seat_id")
+  status          TicketStatus @default(CONFIRMED)
+  coachNumber     String       @map("coach_number")
+  seatNumber      Int          @map("seat_number")
+  seatType        SeatType     @map("seat_type")
+  fare            Decimal      @db.Decimal(10, 2)
+
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  passenger       Passenger    @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+  seat            Seat         @relation(fields: [seatId], references: [id])
+
+  @@index([passengerId])
+  @@index([seatId])
+  @@index([status])
+  @@map("tickets")
+}
+
+// ============================================================
+// 13. PAYMENTS
+// ============================================================
+// Payment record for a booking. One-to-one with Booking.
+// Tracks payment method, gateway transaction IDs, refund info.
+// gatewayResponse stores the raw JSON from the payment provider.
+
+model Payment {
+  id                String        @id @default(uuid())
+  bookingId         String        @unique @map("booking_id")
+  amount            Decimal       @db.Decimal(10, 2)
+  currency          String        @default("INR")
+  method            PaymentMethod?
+  status            PaymentStatus @default(PENDING)
+  transactionId     String?       @unique @map("transaction_id") // Gateway txn ID
+  gatewayOrderId    String?       @unique @map("gateway_order_id")
+  gatewayResponse   Json?         @map("gateway_response") // Raw response
+  refundAmount      Decimal?      @db.Decimal(10, 2) @map("refund_amount")
+  refundId          String?       @map("refund_id")
+  paidAt            DateTime?     @map("paid_at")
+  refundedAt        DateTime?     @map("refunded_at")
+  failureReason     String?       @map("failure_reason")
+
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  booking           Booking       @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+  @@index([transactionId])
+  @@index([status])
+  @@index([paidAt])
+  @@map("payments")
+}
+
+// ============================================================
+// 14. PNR (Passenger Name Record)
+// ============================================================
+// Unique PNR number for each booking. One-to-one with Booking.
+// pnrNumber is a 10-digit identifier used for status lookups.
+// chartPrepared indicates if the final seat chart has been generated.
+
+model PNR {
+  id              String        @id @default(uuid())
+  bookingId       String        @unique @map("booking_id")
+  pnrNumber       String        @unique @map("pnr_number") // 10-digit PNR
+  status          BookingStatus
+  chartPrepared   Boolean       @default(false) @map("chart_prepared")
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+
+  @@index([pnrNumber])
+  @@index([bookingId])
+  @@map("pnr_records")
+}
+
+// ============================================================
+// 15. WAITING LIST
+// ============================================================
+// Queue for passengers when confirmed seats are full.
+// waitlistNumber assigns position (WL1, WL2, WL3...).
+// Auto-promoted to RAC or Confirmed when cancellations occur.
+
+model WaitingList {
+  id              String          @id @default(uuid())
+  passengerId     String          @unique @map("passenger_id")
+  trainId         String          @map("train_id")
+  journeyDate     DateTime        @map("journey_date")
+  coachTypeCode   String          @map("coach_type_code") // "SL", "3A", etc.
+  waitlistNumber  Int             @map("waitlist_number") // Position in queue
+  status          WaitlistStatus  @default(WAITING)
+  promotedAt      DateTime?       @map("promoted_at")
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  passenger       Passenger       @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+
+  @@unique([trainId, journeyDate, coachTypeCode, waitlistNumber])
+  @@index([trainId, journeyDate])
+  @@index([coachTypeCode])
+  @@index([status])
+  @@map("waiting_list")
+}
+
+// ============================================================
+// 16. RAC (Reservation Against Cancellation)
+// ============================================================
+// Passengers assigned half a berth, awaiting full confirmation.
+// Two RAC passengers share one SIDE_LOWER berth.
+// Auto-promoted to Confirmed when cancellations occur.
+
+model RAC {
+  id              String      @id @default(uuid())
+  passengerId     String      @unique @map("passenger_id")
+  seatId          String      @map("seat_id") // Shared half-berth
+  trainId         String      @map("train_id")
+  journeyDate     DateTime    @map("journey_date")
+  racNumber       Int         @map("rac_number") // Position (RAC1, RAC2...)
+  status          RACStatus   @default(RAC)
+  promotedAt      DateTime?   @map("promoted_at")
+
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  passenger       Passenger   @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+  seat            Seat        @relation(fields: [seatId], references: [id])
+
+  @@unique([trainId, journeyDate, racNumber])
+  @@index([trainId, journeyDate])
+  @@index([seatId])
+  @@index([status])
+  @@map("rac_entries")
+}
+
+// ============================================================
+// 17. SEAT LOCKS (Real-time Locking)
+// ============================================================
+// Temporary lock placed when a user begins the booking flow.
+// Prevents double-booking via WebSocket-broadcast seat locking.
+// Auto-releases after expiresAt or user disconnect.
+
+model SeatLock {
+  id              String    @id @default(uuid())
+  seatId          String    @map("seat_id")
+  userId          String    @map("user_id")
+  trainId         String    @map("train_id")
+  journeyDate     DateTime  @map("journey_date")
+  lockedAt        DateTime  @default(now()) @map("locked_at")
+  expiresAt       DateTime  @map("expires_at") // Auto-release time
+  isActive        Boolean   @default(true) @map("is_active")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  seat            Seat      @relation(fields: [seatId], references: [id])
+  user            User      @relation(fields: [userId], references: [id])
+
+  @@unique([seatId, trainId, journeyDate], map: "unique_seat_lock_per_journey")
+  @@index([seatId])
+  @@index([userId])
+  @@index([trainId, journeyDate])
+  @@index([expiresAt])
+  @@index([isActive])
+  @@map("seat_locks")
+}
+
+// ============================================================
+// 18. NOTIFICATIONS
+// ============================================================
+// In-app notifications sent to users.
+// Covers booking confirmations, cancellations, promotions,
+// payment updates, delays, and departure reminders.
+
+model Notification {
+  id              String            @id @default(uuid())
+  userId          String            @map("user_id")
+  type            NotificationType
+  title           String
+  message         String
+  data            Json?             // Additional metadata (bookingId, pnr, etc.)
+  isRead          Boolean           @default(false) @map("is_read")
+  readAt          DateTime?         @map("read_at")
+
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
