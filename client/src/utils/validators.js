@@ -1,0 +1,1 @@
+﻿// Lightweight validation helper functions

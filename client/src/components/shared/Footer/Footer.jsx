@@ -1,0 +1,1 @@
+﻿// Footer - Shared layout component
