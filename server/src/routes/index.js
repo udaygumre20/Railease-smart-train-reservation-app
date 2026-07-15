@@ -9,15 +9,18 @@
 
 import { Router } from 'express';
 import { authRoutes } from '../modules/auth/index.js';
+import { trainRoutes } from '../modules/train/index.js';
 
 const router = Router();
 
 // ── Auth routes (from modular architecture) ─────────────────
 router.use('/auth', authRoutes);
 
+// ── Train routes (Phase 4 Part 1) ───────────────────────────
+router.use('/trains', trainRoutes);
+
 // Future phase routes will be mounted here:
 // router.use('/users', userRoutes);
-// router.use('/trains', trainRoutes);
 // router.use('/bookings', bookingRoutes);
 // router.use('/stations', stationRoutes);
 // router.use('/payments', paymentRoutes);
