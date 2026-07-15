@@ -201,3 +201,91 @@ export const deleteSchedule = async (id) => {
 
   return scheduleRepository.softDeleteSchedule(id);
 };
+
+// ── SEAT AVAILABILITY (PHASE 4 PART 6) ──────────────────────
+
+/**
+ * Calculate seat availability for a specific schedule, route segment, and date.
+ * 
+ * @param {string} scheduleId 
+ * @param {object} params
+ * @returns {Promise<object>}
+ */
+export const checkSeatAvailability = async (scheduleId, params) => {
+  const { sourceStationId, destinationStationId, travelClass, journeyDate, quota } = params;
+
+  if (sourceStationId === destinationStationId) {
+    throw new ValidationError('Source and destination stations cannot be the same');
+  }
+
+  const reqDate = new Date(journeyDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (reqDate < today) {
+    throw new ValidationError('Journey date cannot be in the past');
+  }
+
+  // 1. Validate Schedule
+  const schedule = await scheduleRepository.findScheduleById(scheduleId);
+  if (!schedule || !schedule.isActive) {
+    throw new NotFoundError('Schedule not found or inactive');
+  }
+
+  const trainId = schedule.trainId;
+  const routeId = schedule.routeId;
+
+  // 2. Validate Stations and Direction
+  const routeStopsMap = await scheduleRepository.getRouteStopsMap(routeId);
+  
+  if (routeStopsMap[sourceStationId] === undefined) {
+    throw new ValidationError('Source station is not on this route');
+  }
+  if (routeStopsMap[destinationStationId] === undefined) {
+    throw new ValidationError('Destination station is not on this route');
+  }
+
+  const sourceSeq = routeStopsMap[sourceStationId];
+  const destSeq = routeStopsMap[destinationStationId];
+
+  if (sourceSeq >= destSeq) {
+    throw new ValidationError('Source station must appear before destination station on this route');
+  }
+
+  // 3. Calculate Total Seats
+  const totalSeats = await scheduleRepository.getTotalSeatsForClass(trainId, travelClass);
+
+  // 4. Calculate Overlapping Bookings
+  const bookings = await scheduleRepository.getConfirmedBookings(trainId, routeId, reqDate, travelClass, quota);
+  
+  let overlappingBookedSeats = 0;
+
+  for (const booking of bookings) {
+    const bookingBoardingSeq = routeStopsMap[booking.boardingStationId];
+    const bookingAlightingSeq = routeStopsMap[booking.alightingStationId];
+
+    if (bookingBoardingSeq === undefined || bookingAlightingSeq === undefined) continue;
+
+    // Check overlap:
+    // A booking overlaps if it starts BEFORE our destination AND ends AFTER our source.
+    if (bookingBoardingSeq < destSeq && bookingAlightingSeq > sourceSeq) {
+      overlappingBookedSeats += booking.totalPassengers;
+    }
+  }
+
+  // 5. Calculate Availability
+  const availableSeats = Math.max(0, totalSeats - overlappingBookedSeats);
+  const status = availableSeats === 0 ? 'FULL' : 'AVAILABLE';
+
+  return {
+    scheduleId,
+    train: {
+      number: schedule.train.trainNumber,
+      name: schedule.train.name,
+    },
+    travelClass,
+    totalSeats,
+    bookedSeats: overlappingBookedSeats,
+    availableSeats,
+    status,
+  };
+};

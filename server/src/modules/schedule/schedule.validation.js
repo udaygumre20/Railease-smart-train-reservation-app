@@ -100,3 +100,34 @@ export const scheduleQuerySchema = z.object({
     .transform((val) => val === 'true')
     .optional(),
 });
+
+// ── SEAT AVAILABILITY QUERY SCHEMA (PHASE 4 PART 6) ─────────
+
+const QUOTA_VALUES = [
+  'GENERAL',
+  'LADIES',
+  'TATKAL',
+  'PREMIUM_TATKAL',
+  'SENIOR_CITIZEN',
+  'DIVYAANG',
+  'DEFENCE',
+  'FOREIGN_TOURIST'
+];
+
+export const seatAvailabilityQuerySchema = z.object({
+  sourceStationId: uuidSchema,
+  destinationStationId: uuidSchema,
+  
+  travelClass: z.string().min(1, 'Travel class is required'),
+  
+  journeyDate: z
+    .string()
+    .date('Journey date must be a valid ISO date string (YYYY-MM-DD)')
+    .or(z.string().datetime('Journey date must be a valid ISO date string')),
+
+  quota: z
+    .enum(QUOTA_VALUES, {
+      errorMap: () => ({ message: `Quota must be one of: ${QUOTA_VALUES.join(', ')}` })
+    })
+    .optional(),
+});

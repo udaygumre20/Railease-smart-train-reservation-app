@@ -146,3 +146,90 @@ export const softDeleteSchedule = async (id) => {
     include: INCLUDE_RELATIONS,
   });
 };
+
+// ── SEAT AVAILABILITY (PHASE 4 PART 6) ──────────────────────
+
+/**
+ * Get the sequence number of a specific station on a route.
+ * 
+ * @param {string} routeId 
+ * @param {string} stationId 
+ * @returns {Promise<number|null>} The sequence number or null if not found.
+ */
+export const getRouteStopSequence = async (routeId, stationId) => {
+  const stop = await prisma.routeStop.findUnique({
+    where: {
+      routeId_stationId: { routeId, stationId }
+    },
+    select: { sequenceNumber: true }
+  });
+  return stop?.sequenceNumber ?? null;
+};
+
+/**
+ * Get the total number of seats for a specific travel class on a train.
+ * 
+ * @param {string} trainId 
+ * @param {string} travelClassCode - e.g., 'SL', '3A'
+ * @returns {Promise<number>} Total seats
+ */
+export const getTotalSeatsForClass = async (trainId, travelClassCode) => {
+  const result = await prisma.coach.aggregate({
+    where: {
+      trainId,
+      isActive: true,
+      coachType: { code: travelClassCode }
+    },
+    _sum: {
+      totalSeats: true
+    }
+  });
+  return result._sum.totalSeats || 0;
+};
+
+/**
+ * Get all confirmed bookings for a specific train, date, and class.
+ * Includes the sequence numbers for boarding and alighting stations.
+ * 
+ * @param {string} trainId 
+ * @param {string} routeId 
+ * @param {Date} journeyDate 
+ * @param {string} travelClass 
+ * @param {string} [quota]
+ * @returns {Promise<object[]>}
+ */
+export const getConfirmedBookings = async (trainId, routeId, journeyDate, travelClass, quota) => {
+  const where = {
+    trainId,
+    journeyDate,
+    status: 'CONFIRMED',
+    coachPreference: travelClass,
+  };
+  if (quota) where.quota = quota;
+
+  return prisma.booking.findMany({
+    where,
+    select: {
+      totalPassengers: true,
+      boardingStationId: true,
+      alightingStationId: true,
+    }
+  });
+};
+
+/**
+ * Fetch all route stops for a route to map station IDs to sequence numbers in memory.
+ * @param {string} routeId 
+ * @returns {Promise<Record<string, number>>} Map of stationId -> sequenceNumber
+ */
+export const getRouteStopsMap = async (routeId) => {
+  const stops = await prisma.routeStop.findMany({
+    where: { routeId },
+    select: { stationId: true, sequenceNumber: true }
+  });
+  const map = {};
+  for (const stop of stops) {
+    map[stop.stationId] = stop.sequenceNumber;
+  }
+  return map;
+};

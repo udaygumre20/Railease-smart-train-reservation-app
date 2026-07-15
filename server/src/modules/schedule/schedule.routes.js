@@ -13,11 +13,24 @@ import {
   updateScheduleSchema,
   scheduleIdParamSchema,
   scheduleQuerySchema,
+  seatAvailabilityQuerySchema,
 } from './schedule.validation.js';
 
 const router = Router();
 
-// ── All schedule routes require authentication ──────────────
+// ── PUBLIC ROUTES ───────────────────────────────────────────
+
+router.get(
+  '/:id/seat-availability',
+  validate({
+    params: scheduleIdParamSchema,
+    query: seatAvailabilityQuerySchema,
+  }),
+  scheduleController.getSeatAvailability,
+);
+
+// ── PROTECTED ROUTES ────────────────────────────────────────
+// All routes below require authentication
 router.use(authenticate);
 
 // ── Routes ──────────────────────────────────────────────────

@@ -13,6 +13,8 @@ import { trainRoutes } from '../modules/train/index.js';
 import { stationRoutes } from '../modules/station/index.js';
 import { routeRoutes } from '../modules/route/index.js';
 import { scheduleRoutes } from '../modules/schedule/index.js';
+import { bookingRoutes } from '../modules/booking/index.js';
+import { paymentRoutes } from '../modules/payment/index.js';
 
 const router = Router();
 
@@ -33,7 +35,7 @@ router.use('/schedules', scheduleRoutes);
 
 // Future phase routes will be mounted here:
 // router.use('/users', userRoutes);
-// router.use('/bookings', bookingRoutes);
-// router.use('/payments', paymentRoutes);
+router.use('/bookings', bookingRoutes);
+router.use('/payments', paymentRoutes);
 
 export default router;

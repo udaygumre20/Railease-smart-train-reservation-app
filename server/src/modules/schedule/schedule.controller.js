@@ -80,3 +80,17 @@ export const deleteSchedule = asyncHandler(async (req, res) => {
     data: { schedule },
   });
 });
+
+// ── SEAT AVAILABILITY (PHASE 4 PART 6) ──────────────────────
+
+/**
+ * GET /api/v1/schedules/:id/seat-availability
+ */
+export const getSeatAvailability = asyncHandler(async (req, res) => {
+  const data = await scheduleService.checkSeatAvailability(req.params.id, req.query);
+
+  return sendSuccess(res, {
+    message: 'Seat availability fetched successfully',
+    data,
+  });
+});
