@@ -125,3 +125,77 @@ export const deleteTrain = async (id) => {
     where: { id },
   });
 };
+
+// ── TRAIN SEARCH (PHASE 4 PART 5) ───────────────────────────
+
+/**
+ * Find all routes that contain both source and destination stations,
+ * where the source station sequence is strictly less than destination sequence.
+ * 
+ * @param {string} sourceStationId 
+ * @param {string} destinationStationId 
+ * @returns {Promise<object[]>} Array of routes with filtered stops
+ */
+export const findRoutesBetweenStations = async (sourceStationId, destinationStationId) => {
+  const routes = await prisma.route.findMany({
+    where: {
+      isActive: true,
+      stops: {
+        some: { stationId: sourceStationId },
+      },
+      AND: {
+        stops: { some: { stationId: destinationStationId } },
+      },
+    },
+    include: {
+      stops: {
+        where: {
+          stationId: { in: [sourceStationId, destinationStationId] },
+        },
+        orderBy: { sequenceNumber: 'asc' },
+        include: {
+          station: { select: { id: true, code: true, name: true, city: true } },
+        }
+      },
+    },
+  });
+
+  // Filter out routes where the source is AFTER the destination
+  return routes.filter((route) => {
+    if (route.stops.length !== 2) return false;
+    const sourceStop = route.stops.find(s => s.stationId === sourceStationId);
+    const destStop = route.stops.find(s => s.stationId === destinationStationId);
+    
+    if (!sourceStop || !destStop) return false;
+    return sourceStop.sequenceNumber < destStop.sequenceNumber;
+  });
+};
+
+/**
+ * Find active trains running on specific routes within a date range,
+ * optionally matching run days.
+ * 
+ * @param {string[]} routeIds 
+ * @param {Date} date 
+ * @returns {Promise<object[]>}
+ */
+export const findActiveTrainsForRoutes = async (routeIds) => {
+  return prisma.trainRoute.findMany({
+    where: {
+      routeId: { in: routeIds },
+      isActive: true,
+      train: { status: 'ACTIVE' }
+    },
+    include: {
+      train: true,
+      route: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          totalDistance: true,
+        }
+      }
+    },
+  });
+};

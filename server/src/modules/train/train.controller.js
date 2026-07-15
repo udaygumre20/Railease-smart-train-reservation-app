@@ -90,3 +90,21 @@ export const deleteTrain = asyncHandler(async (req, res) => {
     data: { train },
   });
 });
+
+// ── SEARCH TRAINS (PHASE 4 PART 5) ──────────────────────────
+
+/**
+ * GET /api/v1/trains/search
+ * Public endpoint to search for trains between two stations on a specific date.
+ */
+export const searchTrains = asyncHandler(async (req, res) => {
+  const result = await trainService.searchTrains(req.query);
+
+  return sendSuccess(res, {
+    message: 'Train search completed successfully',
+    data: {
+      trains: result.trains,
+      pagination: result.pagination,
+    },
+  });
+});

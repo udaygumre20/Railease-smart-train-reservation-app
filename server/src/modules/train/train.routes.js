@@ -22,11 +22,19 @@ import {
   updateTrainSchema,
   trainIdParamSchema,
   trainQuerySchema,
+  searchTrainsQuerySchema,
 } from './train.validation.js';
 
 const router = Router();
 
-// ── All train routes require authentication ─────────────────
+// ── PUBLIC ROUTES ───────────────────────────────────────────
+router.get(
+  '/search',
+  validate({ query: searchTrainsQuerySchema }),
+  trainController.searchTrains,
+);
+
+// ── PROTECTED ROUTES ────────────────────────────────────────
 router.use(authenticate);
 
 // ── Routes ──────────────────────────────────────────────────

@@ -138,3 +138,30 @@ export const trainQuerySchema = z.object({
     .optional()
     .default('desc'),
 });
+
+// ── TRAIN SEARCH QUERY SCHEMA (PHASE 4 PART 5) ──────────────
+
+export const searchTrainsQuerySchema = z.object({
+  sourceStationId: uuidSchema,
+  destinationStationId: uuidSchema,
+  
+  journeyDate: z
+    .string()
+    .date('Journey date must be a valid ISO date string (YYYY-MM-DD)')
+    .or(z.string().datetime('Journey date must be a valid ISO date string')),
+
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+
+  sortBy: z
+    .enum(['departureTime', 'duration', 'trainName'], {
+      errorMap: () => ({ message: 'Sort field must be one of: departureTime, duration, trainName' })
+    })
+    .optional()
+    .default('departureTime'),
+
+  sortOrder: z
+    .enum(['asc', 'desc'])
+    .optional()
+    .default('asc'),
+});
