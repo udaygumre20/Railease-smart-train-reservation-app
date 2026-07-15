@@ -10,6 +10,7 @@
 import { Router } from 'express';
 import { authRoutes } from '../modules/auth/index.js';
 import { trainRoutes } from '../modules/train/index.js';
+import { stationRoutes } from '../modules/station/index.js';
 
 const router = Router();
 
@@ -19,10 +20,12 @@ router.use('/auth', authRoutes);
 // ── Train routes (Phase 4 Part 1) ───────────────────────────
 router.use('/trains', trainRoutes);
 
+// ── Station routes (Phase 4 Part 2) ─────────────────────────
+router.use('/stations', stationRoutes);
+
 // Future phase routes will be mounted here:
 // router.use('/users', userRoutes);
 // router.use('/bookings', bookingRoutes);
-// router.use('/stations', stationRoutes);
 // router.use('/payments', paymentRoutes);
 
 export default router;
