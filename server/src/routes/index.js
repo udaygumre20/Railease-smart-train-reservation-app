@@ -11,6 +11,7 @@ import { Router } from 'express';
 import { authRoutes } from '../modules/auth/index.js';
 import { trainRoutes } from '../modules/train/index.js';
 import { stationRoutes } from '../modules/station/index.js';
+import { routeRoutes } from '../modules/route/index.js';
 
 const router = Router();
 
@@ -22,6 +23,9 @@ router.use('/trains', trainRoutes);
 
 // ── Station routes (Phase 4 Part 2) ─────────────────────────
 router.use('/stations', stationRoutes);
+
+// ── Route routes (Phase 4 Part 3) ───────────────────────────
+router.use('/routes', routeRoutes);
 
 // Future phase routes will be mounted here:
 // router.use('/users', userRoutes);
