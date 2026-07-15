@@ -15,6 +15,7 @@ import { routeRoutes } from '../modules/route/index.js';
 import { scheduleRoutes } from '../modules/schedule/index.js';
 import { bookingRoutes } from '../modules/booking/index.js';
 import { paymentRoutes } from '../modules/payment/index.js';
+import { ticketRoutes } from '../modules/ticket/index.js';
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.use('/schedules', scheduleRoutes);
 // Future phase routes will be mounted here:
 // router.use('/users', userRoutes);
 router.use('/bookings', bookingRoutes);
+router.use('/bookings', ticketRoutes); // Mounts /:bookingId/ticket
 router.use('/payments', paymentRoutes);
 
 export default router;
