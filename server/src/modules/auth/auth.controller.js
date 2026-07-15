@@ -11,6 +11,7 @@
 // ============================================================
 
 import * as authService from './auth.service.js';
+import { AuthenticationError } from '../../errors/index.js';
 import { sendSuccess, sendCreated } from '../../helpers/response.helper.js';
 import { cookieOptions } from '../../config/jwt.js';
 import asyncHandler from '../../utils/asyncHandler.js';
@@ -90,6 +91,10 @@ export const logout = asyncHandler(async (req, res) => {
 export const refreshToken = asyncHandler(async (req, res) => {
   const token = req.cookies?.[REFRESH_TOKEN_COOKIE];
 
+  if (!token) {
+    throw new AuthenticationError('Refresh token is required');
+  }
+
   const result = await authService.refreshAccessToken(token);
 
   // Set the rotated refresh token cookie
@@ -118,7 +123,7 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
   const user = await getUserById(req.user.userId);
 
   return sendSuccess(res, {
-    message: 'User profile retrieved successfully',
-    data: { user },
+    message: 'User profile fetched successfully',
+    data: user,
   });
 });

@@ -23,8 +23,13 @@ import { NotFoundError } from '../../errors/index.js';
  * @todo Phase 3 Part 3 – implement full retrieval logic.
  */
 export const getUserById = async (userId) => {
-  // TODO: Implement in Phase 3 Part 3
-  throw new Error('getUserById not implemented yet');
+  const user = await userRepository.findById(userId);
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  return user;
 };
 
 // ── GET USER BY EMAIL ───────────────────────────────────────

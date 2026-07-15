@@ -37,7 +37,7 @@ const authenticate = (req, _res, next) => {
 
     // 3. No token found
     if (!token) {
-      throw new AuthenticationError('Access token is required. Please log in.');
+      throw new AuthenticationError('Access token is required');
     }
 
     // 4. Verify and decode
@@ -53,16 +53,16 @@ const authenticate = (req, _res, next) => {
   } catch (error) {
     // Handle specific JWT errors with clear messages
     if (error.name === 'TokenExpiredError') {
-      return next(new AuthenticationError('Access token has expired. Please refresh your token.'));
+      return next(new AuthenticationError('Invalid or expired access token'));
     }
     if (error.name === 'JsonWebTokenError') {
-      return next(new AuthenticationError('Invalid access token. Please log in again.'));
+      return next(new AuthenticationError('Invalid or expired access token'));
     }
     if (error instanceof AuthenticationError) {
       return next(error);
     }
 
-    return next(new AuthenticationError('Authentication failed.'));
+    return next(new AuthenticationError('Invalid or expired access token'));
   }
 };
 

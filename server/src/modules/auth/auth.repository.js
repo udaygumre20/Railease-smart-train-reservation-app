@@ -81,8 +81,10 @@ export const findUserByEmail = async (email) => {
  * @todo Phase 3 Part 3 – implement full lookup logic.
  */
 export const findUserById = async (id, options = {}) => {
-  // TODO: Implement in Phase 3 Part 3
-  throw new Error('findUserById not implemented yet');
+  return prisma.user.findUnique({
+    where: { id },
+    select: options.includeSensitive ? undefined : USER_SAFE_SELECT,
+  });
 };
 
 // ── UPDATE REFRESH TOKEN ────────────────────────────────────

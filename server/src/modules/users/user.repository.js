@@ -43,8 +43,10 @@ const USER_SAFE_SELECT = {
  * @todo Phase 3 Part 3 – implement lookup logic.
  */
 export const findById = async (id) => {
-  // TODO: Implement in Phase 3 Part 3
-  throw new Error('findById not implemented yet');
+  return prisma.user.findUnique({
+    where: { id },
+    select: USER_SAFE_SELECT,
+  });
 };
 
 // ── FIND USER BY EMAIL ──────────────────────────────────────

@@ -11,7 +11,7 @@
 // ============================================================
 
 import * as authRepository from './auth.repository.js';
-import { hashPassword, comparePassword, generateTokenPair, sanitizeUser } from './auth.utils.js';
+import { hashPassword, comparePassword, generateTokenPair, sanitizeUser, verifyRefreshToken } from './auth.utils.js';
 import { ConflictError, AuthenticationError } from '../../errors/index.js';
 
 // ── REGISTER USER ───────────────────────────────────────────
@@ -126,8 +126,7 @@ export const loginUser = async (data) => {
  * @todo Phase 3 Part 3 – implement logout logic.
  */
 export const logoutUser = async (userId) => {
-  // TODO: Implement in Phase 3 Part 3
-  throw new Error('logoutUser not implemented yet');
+  await authRepository.updateRefreshToken(userId, null);
 };
 
 // ── REFRESH ACCESS TOKEN ────────────────────────────────────
@@ -149,6 +148,32 @@ export const logoutUser = async (userId) => {
  * @todo Phase 3 Part 3 – implement token refresh logic.
  */
 export const refreshAccessToken = async (token) => {
-  // TODO: Implement in Phase 3 Part 3
-  throw new Error('refreshAccessToken not implemented yet');
+  try {
+    // 1. Verify refresh token signature
+    const decoded = verifyRefreshToken(token);
+
+    // 2. Look up user and include sensitive fields to check the stored token
+    const user = await authRepository.findUserById(decoded.userId, { includeSensitive: true });
+    if (!user) {
+      throw new AuthenticationError('User not found');
+    }
+
+    // 3. Detect token reuse (possible theft)
+    if (user.refreshToken !== token) {
+      throw new AuthenticationError('Invalid or expired refresh token');
+    }
+
+    // 4. Generate new token pair
+    const { accessToken, refreshToken } = generateTokenPair(user);
+
+    // 5. Persist rotated refresh token
+    await authRepository.updateRefreshToken(user.id, refreshToken);
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      throw error;
+    }
+    throw new AuthenticationError('Invalid or expired refresh token');
+  }
 };
