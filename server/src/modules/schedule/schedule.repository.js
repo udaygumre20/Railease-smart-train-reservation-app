@@ -233,3 +233,32 @@ export const getRouteStopsMap = async (routeId) => {
   }
   return map;
 };
+
+/**
+ * Get the total number of non-available seats (BOOKED, LOCKED, RAC, etc.) 
+ * for a specific travel class on a train on a given journey date.
+ * 
+ * @param {string} trainId 
+ * @param {Date} journeyDate 
+ * @param {string} travelClassCode 
+ * @returns {Promise<number>} Number of non-available seats
+ */
+export const getNonAvailableSeatsCount = async (trainId, journeyDate, travelClassCode) => {
+  const result = await prisma.seatAvailability.count({
+    where: {
+      trainId,
+      journeyDate,
+      status: {
+        not: 'AVAILABLE'
+      },
+      seat: {
+        coach: {
+          coachType: {
+            code: travelClassCode
+          }
+        }
+      }
+    }
+  });
+  return result;
+};

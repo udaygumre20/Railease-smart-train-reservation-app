@@ -1,1 +1,10 @@
-﻿
+{
+  "name": "RailEase",
+  "short_name": "RailEase",
+  "description": "Premium Train Reservation System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#4F46E5",
+  "icons": []
+}

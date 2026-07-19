@@ -5,6 +5,7 @@
 
 import * as bookingRepository from './booking.repository.js';
 import * as scheduleService from '../schedule/schedule.service.js';
+import { socketService } from '../socket/index.js';
 import {
   ConflictError,
   NotFoundError,
@@ -223,5 +224,44 @@ export const cancelBooking = async (id, userId) => {
     throw new ConflictError('Cannot cancel a booking for a past journey');
   }
 
-  return bookingRepository.updateBookingStatus(id, 'CANCELLED');
+  const updatedBooking = await bookingRepository.updateBookingStatus(id, 'CANCELLED');
+
+  // Emit Socket.IO Events
+  try {
+    // We can query prisma to find the active schedule for this train.
+    const prisma = (await import('../../database/client.js')).default;
+    const schedule = await prisma.trainRoute.findFirst({
+      where: { trainId: booking.trainId, isActive: true }
+    });
+
+    if (schedule) {
+      socketService.emitBookingCancelled(schedule.id, {
+        bookingId: id,
+        status: 'CANCELLED'
+      });
+
+      // Recalculate seat availability since it might have freed up
+      const params = {
+        sourceStationId: booking.boardingStationId,
+        destinationStationId: booking.alightingStationId,
+        travelClass: booking.coachPreference,
+        journeyDate: booking.journeyDate,
+        quota: booking.quota
+      };
+
+      const availability = await scheduleService.checkSeatAvailability(schedule.id, params);
+      socketService.emitSeatAvailabilityUpdated(schedule.id, {
+        scheduleId: schedule.id,
+        travelClass: params.travelClass,
+        totalSeats: availability.totalSeats,
+        bookedSeats: availability.bookedSeats,
+        availableSeats: availability.availableSeats
+      });
+    }
+  } catch (error) {
+    const logger = (await import('../../utils/logger.js')).default;
+    logger.error(`Error emitting socket events on booking cancellation: ${error.message}`);
+  }
+
+  return updatedBooking;
 };

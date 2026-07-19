@@ -16,6 +16,8 @@ import { scheduleRoutes } from '../modules/schedule/index.js';
 import { bookingRoutes } from '../modules/booking/index.js';
 import { paymentRoutes } from '../modules/payment/index.js';
 import { ticketRoutes } from '../modules/ticket/index.js';
+import { coachPublicRoutes, coachAuthRoutes, coachAdminRoutes } from '../modules/coach/index.js';
+import { seatRoutes } from '../modules/seat/index.js';
 
 const router = Router();
 
@@ -33,6 +35,14 @@ router.use('/routes', routeRoutes);
 
 // ── Schedule routes (Phase 4 Part 4) ────────────────────────
 router.use('/schedules', scheduleRoutes);
+
+// ── Coach Engine routes ─────────────────────────────────────
+router.use('/', coachPublicRoutes);   // /trains/:trainId/coaches, /coaches/:coachId/*
+router.use('/', coachAuthRoutes);     // /seats/recommend
+router.use('/admin', coachAdminRoutes); // /admin/coaches, /admin/layout-templates
+
+// ── Seat management routes ──────────────────────────────────
+router.use('/seats', seatRoutes);     // /seats/lock, /seats/lock/:lockId, /seats/locks
 
 // Future phase routes will be mounted here:
 // router.use('/users', userRoutes);

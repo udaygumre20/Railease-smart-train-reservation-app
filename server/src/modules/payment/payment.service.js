@@ -2,6 +2,8 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import * as paymentRepository from './payment.repository.js';
 import * as bookingService from '../booking/booking.service.js';
+import * as scheduleService from '../schedule/schedule.service.js';
+import { socketService } from '../socket/index.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../errors/index.js';
 
 // Initialize Razorpay
@@ -148,6 +150,50 @@ export const verifyPayment = async (bookingId, userId, verificationData) => {
     },
     true // this is a success, update booking to CONFIRMED
   );
+
+  // 5. Emit Socket.IO Events
+  try {
+    // Notify the user of booking confirmation
+    socketService.emitBookingConfirmed(booking.userId, {
+      bookingId: booking.id,
+      bookingStatus: 'CONFIRMED',
+      paymentStatus: 'SUCCESS'
+    });
+
+    // Find the associated schedule for this train and route
+    // Note: Since booking has a single journey, we can infer schedule if necessary.
+    // Assuming the train has a schedule running on this journey date.
+    // For exact seat availability recalculation, we use checkSeatAvailability logic:
+    const params = {
+      sourceStationId: booking.boardingStationId,
+      destinationStationId: booking.alightingStationId,
+      travelClass: booking.coachPreference,
+      journeyDate: booking.journeyDate,
+      quota: booking.quota
+    };
+
+    // To emit seat updates, we need the scheduleId. 
+    // We can query prisma to find the active schedule for this train.
+    const prisma = (await import('../../database/client.js')).default;
+    const schedule = await prisma.trainRoute.findFirst({
+      where: { trainId: booking.trainId, isActive: true }
+    });
+
+    if (schedule) {
+      const availability = await scheduleService.checkSeatAvailability(schedule.id, params);
+      socketService.emitSeatAvailabilityUpdated(schedule.id, {
+        scheduleId: schedule.id,
+        travelClass: params.travelClass,
+        totalSeats: availability.totalSeats,
+        bookedSeats: availability.bookedSeats,
+        availableSeats: availability.availableSeats
+      });
+    }
+  } catch (error) {
+    // Do not throw on socket emission errors, just log it so payment is not rolled back
+    const logger = (await import('../../utils/logger.js')).default;
+    logger.error(`Error emitting socket events on payment success: ${error.message}`);
+  }
 
   return updatedPayment;
 };

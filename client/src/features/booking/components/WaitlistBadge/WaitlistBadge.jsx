@@ -1,1 +1,0 @@
-﻿// WaitlistBadge - Booking flow component

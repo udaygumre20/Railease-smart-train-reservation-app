@@ -254,26 +254,13 @@ export const checkSeatAvailability = async (scheduleId, params) => {
   // 3. Calculate Total Seats
   const totalSeats = await scheduleRepository.getTotalSeatsForClass(trainId, travelClass);
 
-  // 4. Calculate Overlapping Bookings
-  const bookings = await scheduleRepository.getConfirmedBookings(trainId, routeId, reqDate, travelClass, quota);
+  // 4. Calculate Non-Available Seats from SeatAvailability
+  // This migrates away from the old overlapping segments logic to the new Coach Engine 
+  // where seat availability is managed on a per-journey-date basis.
+  const nonAvailableSeats = await scheduleRepository.getNonAvailableSeatsCount(trainId, reqDate, travelClass);
   
-  let overlappingBookedSeats = 0;
-
-  for (const booking of bookings) {
-    const bookingBoardingSeq = routeStopsMap[booking.boardingStationId];
-    const bookingAlightingSeq = routeStopsMap[booking.alightingStationId];
-
-    if (bookingBoardingSeq === undefined || bookingAlightingSeq === undefined) continue;
-
-    // Check overlap:
-    // A booking overlaps if it starts BEFORE our destination AND ends AFTER our source.
-    if (bookingBoardingSeq < destSeq && bookingAlightingSeq > sourceSeq) {
-      overlappingBookedSeats += booking.totalPassengers;
-    }
-  }
-
   // 5. Calculate Availability
-  const availableSeats = Math.max(0, totalSeats - overlappingBookedSeats);
+  const availableSeats = Math.max(0, totalSeats - nonAvailableSeats);
   const status = availableSeats === 0 ? 'FULL' : 'AVAILABLE';
 
   return {
@@ -284,7 +271,7 @@ export const checkSeatAvailability = async (scheduleId, params) => {
     },
     travelClass,
     totalSeats,
-    bookedSeats: overlappingBookedSeats,
+    bookedSeats: nonAvailableSeats,
     availableSeats,
     status,
   };

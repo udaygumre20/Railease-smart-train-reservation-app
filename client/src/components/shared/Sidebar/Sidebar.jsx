@@ -1,1 +1,0 @@
-﻿// Sidebar - Shared layout component

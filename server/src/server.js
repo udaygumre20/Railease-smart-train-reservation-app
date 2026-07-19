@@ -7,6 +7,8 @@
 import app from './app.js';
 import { env } from './config/index.js';
 import { connectDB, disconnectDB } from './database/connection.js';
+import { initializeSocket } from './modules/socket/index.js';
+import { initSeatLockJob, stopSeatLockJob } from './jobs/seatLock.job.js';
 import logger from './utils/logger.js';
 
 const startServer = async () => {
@@ -21,12 +23,19 @@ const startServer = async () => {
       logger.info(`🔗 Health check: http://localhost:${env.port}/api/v1/health`);
     });
 
+    // 3. Initialize Socket.IO
+    initializeSocket(server);
+
+    // 4. Initialize Cron Jobs
+    initSeatLockJob();
+
     // ── Graceful Shutdown ─────────────────────────────────
     const gracefulShutdown = async (signal) => {
       logger.info(`\n${signal} received. Shutting down gracefully...`);
 
       server.close(async () => {
         logger.info('🔒 HTTP server closed');
+        stopSeatLockJob();
         await disconnectDB();
         logger.info('👋 Process exiting');
         process.exit(0);

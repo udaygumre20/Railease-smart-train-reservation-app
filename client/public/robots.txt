@@ -1,1 +1,3 @@
-﻿# Search engine crawl rules
+User-agent: *
+Allow: /
+Sitemap: https://railease.com/sitemap.xml

@@ -98,6 +98,7 @@ model Train {
   id           String        @id @default(uuid())
   trainNumber  String        @unique @map("train_number")
   name         String
+  trainType    TrainType     @default(OTHER) @map("train_type")
   status       TrainStatus   @default(ACTIVE)
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
@@ -111,6 +112,7 @@ model Train {
   @@index([trainNumber])
   @@index([name])
   @@index([status])
+  @@index([trainType])
   @@map("trains")
 }
 
@@ -135,18 +137,26 @@ model TrainRoute {
 }
 
 model CoachType {
-  id            String   @id @default(uuid())
-  code          String   @unique
-  name          String
-  seatLayout    Json?    @map("seat_layout")
-  seatsPerCoach Int      @map("seats_per_coach")
-  hasAC         Boolean  @default(false) @map("has_ac")
-  berthTiers    Int      @map("berth_tiers")
-  baseFarePerKm Decimal  @map("base_fare_per_km") @db.Decimal(6, 2)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  coaches       Coach[]
+  id               String           @id @default(uuid())
+  code             String           @unique
+  name             String
+  coachClass       CoachClass?      @map("coach_class")
+  technology       CoachTechnology? @map("technology")
+  layoutType       LayoutType?      @map("layout_type")
+  layoutTemplateId String?          @map("layout_template_id")
+  seatLayout       Json?            @map("seat_layout")
+  seatsPerCoach    Int              @map("seats_per_coach")
+  hasAC            Boolean          @default(false) @map("has_ac")
+  berthTiers       Int              @map("berth_tiers")
+  baseFarePerKm    Decimal          @map("base_fare_per_km") @db.Decimal(6, 2)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  coaches          Coach[]
+  layoutTemplate   LayoutTemplate?  @relation(fields: [layoutTemplateId], references: [id])
 
+  @@index([coachClass])
+  @@index([technology])
+  @@index([layoutType])
   @@map("coach_types")
 }
 
@@ -171,22 +181,33 @@ model Coach {
 }
 
 model Seat {
-  id          String     @id @default(uuid())
-  seatNumber  Int        @map("seat_number")
-  seatType    SeatType   @map("seat_type")
-  coachId     String     @map("coach_id")
-  isAvailable Boolean    @default(true) @map("is_available")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-  racEntries  RAC[]
-  seatLocks   SeatLock[]
-  coach       Coach      @relation(fields: [coachId], references: [id], onDelete: Cascade)
-  tickets     Ticket[]
+  id           String           @id @default(uuid())
+  seatNumber   Int              @map("seat_number")
+  seatLabel    String?          @map("seat_label")
+  seatType     SeatType         @map("seat_type")
+  position     SeatPosition?
+  coachId      String           @map("coach_id")
+  rowNumber    Int?             @map("row_number")
+  columnNumber Int?             @map("column_number")
+  cabin        Int?
+  coupe        Int?
+  isAccessible Boolean          @default(false) @map("is_accessible")
+  reservedFor  SeatReservation  @default(NONE) @map("reserved_for")
+  isAvailable  Boolean          @default(true) @map("is_available")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  racEntries   RAC[]
+  seatLocks    SeatLock[]
+  coach        Coach            @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+  availability SeatAvailability[]
 
   @@unique([coachId, seatNumber])
   @@index([coachId])
   @@index([isAvailable])
   @@index([seatType])
+  @@index([position])
+  @@index([reservedFor])
   @@map("seats")
 }
 
@@ -419,6 +440,11 @@ enum SeatType {
   UPPER
   SIDE_LOWER
   SIDE_UPPER
+  WINDOW_SEAT
+  AISLE_SEAT
+  MIDDLE_SEAT
+  CABIN_BERTH
+  COUPE_BERTH
 }
 
 enum BookingStatus {
@@ -496,4 +522,104 @@ enum Quota {
   DIVYAANG
   DEFENCE
   FOREIGN_TOURIST
+}
+
+// ══════════════════════════════════════════════════════════════
+// Coach Engine Enums
+// ══════════════════════════════════════════════════════════════
+
+enum TrainType {
+  VANDE_BHARAT
+  RAJDHANI
+  SHATABDI
+  DURONTO
+  MAIL_EXPRESS
+  SUPERFAST
+  TEJAS
+  AMRIT_BHARAT
+  GARIB_RATH
+  HUMSAFAR
+  OTHER
+}
+
+enum CoachClass {
+  EC   // Executive Chair Car
+  CC   // Chair Car
+  SL   // Sleeper
+  AC3  // Third AC (3A)
+  AC2  // Second AC (2A)
+  AC1  // First AC (1A)
+}
+
+enum CoachTechnology {
+  LHB
+  ICF
+  VANDE_BHARAT
+}
+
+enum LayoutType {
+  CHAIR_2_2       // EC: 2+2 seating
+  CHAIR_2_3       // CC: 2+3 seating
+  SLEEPER_3_TIER  // SL: 3-tier + side berths
+  AC_3_TIER       // 3A: 3-tier + side berths (with curtains)
+  AC_2_TIER       // 2A: 2-tier + side berths
+  FIRST_AC        // 1A: Cabin/Coupe
+}
+
+enum SeatPosition {
+  WINDOW
+  AISLE
+  MIDDLE
+}
+
+enum SeatReservation {
+  NONE
+  GENDER_RESERVED
+  SENIOR_RESERVED
+  ACCESSIBLE
+}
+
+enum SeatStatus {
+  AVAILABLE
+  BOOKED
+  RAC_STATUS
+  WAITING
+  LOCKED
+  SELECTED
+  BLOCKED
+}
+
+// ══════════════════════════════════════════════════════════════
+// Coach Engine Models
+// ══════════════════════════════════════════════════════════════
+
+model LayoutTemplate {
+  id              String     @id @default(uuid())
+  layoutType      LayoutType @unique @map("layout_type")
+  name            String
+  totalRows       Int        @map("total_rows")
+  totalColumns    Int        @map("total_columns")
+  totalSeats      Int        @map("total_seats")
+  seatDefinitions Json       @map("seat_definitions")
+  isActive        Boolean    @default(true) @map("is_active")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  coachTypes      CoachType[]
+
+  @@map("layout_templates")
+}
+
+model SeatAvailability {
+  id          String     @id @default(uuid())
+  seatId      String     @map("seat_id")
+  trainId     String     @map("train_id")
+  journeyDate DateTime   @map("journey_date")
+  status      SeatStatus @default(AVAILABLE)
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  seat        Seat       @relation(fields: [seatId], references: [id], onDelete: Cascade)
+
+  @@unique([seatId, trainId, journeyDate])
+  @@index([trainId, journeyDate])
+  @@index([status])
+  @@map("seat_availability")
 }

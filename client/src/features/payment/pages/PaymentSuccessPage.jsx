@@ -1,1 +1,0 @@
-﻿// Payment success confirmation page
